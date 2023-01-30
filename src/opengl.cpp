@@ -13,10 +13,97 @@ using namespace std;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
+// Initialize Camera
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f); // Camera is 3 units 'above' the scene
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);  // Camera is initially looking at the origin.
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f); // Camera up is set as the 'y' axis
+
+// timing
+float deltaTime = 0.0f;	// time between current frame and last frame
+float lastFrame = 0.0f;
+
+// Mouse positions
+float lastX = SCR_WIDTH / 2, lastY = SCR_HEIGHT / 2;
+float sensitivity = 1.0;
+float sensitivityIncreaseUnit = 0.1;
+float sensitivityMax = 2.0;
+float sensitivityMin = 0.1;
+float yaw = -90.0f;
+float pitch = 0.0f;
+bool firstMouse = true;
+
+float lastScrollX = 0, lastScrollY = 0;
+float scrollSensitivity = 0.001;
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
 }  
+
+void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (firstMouse) // initially set to true
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // reversed since y-coordinates range from bottom to top
+    lastX = xpos;
+    lastY = ypos;
+
+    //const float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw += xoffset;
+    pitch += yoffset;
+
+    if(pitch > 89.0f) 
+        pitch = 89.0f;
+    if(pitch < -89.0f)
+        pitch = -89.0f;
+
+    glm::vec3 direction;
+    direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    direction.y = sin(glm::radians(pitch));
+    direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    cameraFront = glm::normalize(direction);
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    if (sensitivity + yoffset * sensitivityIncreaseUnit > sensitivityMax) {
+        sensitivity = sensitivity;
+        std::cout << "Sensitivity reached max" << std::endl;
+    } else if (sensitivity + yoffset * sensitivityIncreaseUnit < sensitivityMin) {
+        sensitivity = sensitivity;
+        std::cout << "Sensitivity reached min" << std::endl;
+    } else {
+        sensitivity += yoffset * sensitivityIncreaseUnit;
+        std::cout << "Sensitivity is: " << sensitivity << std::endl;
+    }
+}
+
+void processInput(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    float cameraSpeed = static_cast<float>(sensitivity * deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        cameraPos += cameraSpeed * cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        cameraPos -= cameraSpeed * cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        cameraPos += cameraSpeed * cameraUp;
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        cameraPos -= cameraSpeed * cameraUp;
+}
+
 
 int main () {
 
@@ -34,7 +121,11 @@ int main () {
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
+
+
     
+
+
 /*
 
     Create GLFW Window
@@ -49,8 +140,12 @@ int main () {
         return -1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
+    // Callbacks
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 /*
 
     GLAD: Load all OpenGL Function Pointers
@@ -142,13 +237,22 @@ int main () {
     glEnableVertexAttribArray(1);
 
 
+
     // glUseProgram(shaderProgram);
 
     while(!glfwWindowShouldClose(window))
     {
+
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+        processInput(window);
+
         glClearColor(0.2f, 0.3f, 0.3f, 10.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
         myShader.setMatrix4fv("model", model);
         myShader.setMatrix4fv("view", view);
         myShader.setMatrix4fv("projection", projection);
